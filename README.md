@@ -19,4 +19,4 @@ Currently, Pixstage is lack of well-designed interface and waiting for refactori
 
 ## Screenshot
 
-<img src="./screenshots/rectangle_and_line.png" width="49%" alt="rectangle_and_line" />
+<img src="https://github.com/Latias94/pixstage/raw/main/screenshots/rectangle_and_line.png" width="49%" alt="rectangle_and_line" />

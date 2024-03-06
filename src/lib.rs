@@ -5,6 +5,8 @@ use winit::window::Window;
 
 mod texture;
 
+pub use wgpu;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {

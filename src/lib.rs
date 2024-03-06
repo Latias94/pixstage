@@ -63,7 +63,7 @@ pub struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
+    size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -248,14 +248,14 @@ impl State {
 
     pub fn start(&mut self) {
         let size = self.window.inner_size();
-        self.resize(size);
+        self.resize([size.width, size.height]);
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+    pub fn resize(&mut self, new_size: [u32; 2]) {
+        if new_size[0] > 0 && new_size[1] > 0 {
+            self.size = winit::dpi::PhysicalSize::new(new_size[0], new_size[1]);
+            self.config.width = new_size[0];
+            self.config.height = new_size[1];
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -323,7 +323,7 @@ impl State {
 
             // flip y
             // let y = (self.size.height / self.scale) as usize - y - 1;
-            
+
             let index = 4 * (x * scale + y * scale * width);
             for i in 0..scale {
                 for j in 0..scale {
@@ -341,5 +341,29 @@ impl State {
             self.size.width,
             self.size.height,
         );
+    }
+
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    pub fn size(&self) -> [u32; 2] {
+        [self.size.width, self.size.height]
+    }
+
+    pub fn scale(&self) -> u32 {
+        self.scale
+    }
+
+    pub fn pixel_buffer(&self) -> &[u8] {
+        &self.pixel_buffer
+    }
+
+    pub fn pixel_buffer_mut(&mut self) -> &mut [u8] {
+        &mut self.pixel_buffer
     }
 }

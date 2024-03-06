@@ -6,6 +6,8 @@ license = "MIT"
 authors = ["Latias94 <superfrankie621@gmail.com>"]
 description = "A canvas for drawing pixels"
 readme = "README.md"
+keywords = ["pixels", "2d", "gpu", "framebuffer"]
+categories = ["graphics"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

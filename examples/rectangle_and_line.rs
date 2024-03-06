@@ -98,7 +98,7 @@ fn start_event_loop(state: State, window: Arc<Window>, event_loop: EventLoop<()>
                         if physical_size.width == 0 || physical_size.height == 0 {
                             println!("Window minimized!");
                         } else {
-                            state.resize(physical_size);
+                            state.resize([physical_size.width, physical_size.height]);
                             window.request_redraw();
                         }
                     }
@@ -107,7 +107,7 @@ fn start_event_loop(state: State, window: Arc<Window>, event_loop: EventLoop<()>
                         state.update();
                         match state.render() {
                             Ok(_) => {}
-                            Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                            Err(wgpu::SurfaceError::Lost) => state.resize(state.size()),
                             Err(e) => eprintln!("{e:?}"),
                         }
                         window.request_redraw();

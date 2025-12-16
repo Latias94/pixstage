@@ -1,7 +1,8 @@
-use pixstage::{PixstageRgba, SurfaceTexture};
+use pixstage::{PixstageIndexed, SurfaceTexture};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Instant;
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, KeyEvent, WindowEvent},
@@ -13,58 +14,30 @@ use winit::{
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-fn draw_scene(stage: &mut PixstageRgba) {
-    stage.clear([0, 0, 0, 255]);
-
-    let red = [255u8, 0, 0, 255];
-    for x in 50..=150 {
-        for y in 50..=150 {
-            stage.set_pixel(x, y, red);
+fn init_indices(stage: &mut PixstageIndexed) {
+    let (width, height) = stage.buffer_size();
+    let frame = stage.frame_mut();
+    for y in 0..height {
+        for x in 0..width {
+            let index = ((x + y) & 0xff) as u8;
+            frame[(y * width + x) as usize] = index;
         }
     }
-
-    draw_line(stage, 30, 30, 170, 170, [255, 255, 0, 255]);
 }
 
-fn draw_line(stage: &mut PixstageRgba, x0: u32, y0: u32, x1: u32, y1: u32, color: [u8; 4]) {
-    let mut steep = false;
-    let mut x0 = x0 as i32;
-    let mut x1 = x1 as i32;
-    let mut y0 = y0 as i32;
-    let mut y1 = y1 as i32;
-
-    if (x0 - x1).abs() < (y0 - y1).abs() {
-        steep = true;
-        std::mem::swap(&mut x0, &mut y0);
-        std::mem::swap(&mut x1, &mut y1);
-    }
-
-    if x0 > x1 {
-        std::mem::swap(&mut x0, &mut x1);
-        std::mem::swap(&mut y0, &mut y1);
-    }
-
-    let dx = x1 - x0;
-    let dy = y1 - y0;
-    let derror2 = dy.abs() * 2;
-    let mut error2 = 0;
-    let mut y = y0;
-    for x in x0..=x1 {
-        if steep {
-            stage.set_pixel(y.max(0) as u32, x.max(0) as u32, color);
-        } else {
-            stage.set_pixel(x.max(0) as u32, y.max(0) as u32, color);
-        }
-        error2 += derror2;
-        if error2 > dx {
-            y += if y1 > y0 { 1 } else { -1 };
-            error2 -= dx * 2;
-        }
+fn update_palette(stage: &mut PixstageIndexed, t: f32) {
+    let palette = stage.palette_mut();
+    for (i, color) in palette.iter_mut().enumerate() {
+        let phase = (i as f32 / 256.0 + t).fract();
+        let r = (phase * 255.0) as u8;
+        let g = ((phase * 2.0).fract() * 255.0) as u8;
+        let b = (255u8).saturating_sub(r);
+        *color = [r, g, b, 255];
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-fn setup_canvas(window: &Window) {
+fn setup_canvas(window: &Window, buffer_width: u32, buffer_height: u32) {
     use winit::platform::web::WindowExtWebSys;
 
     let _ = web_sys::window()
@@ -72,7 +45,7 @@ fn setup_canvas(window: &Window) {
         .map(|doc| {
             let canvas = window.canvas().unwrap();
             let mut web_width = 800.0f32;
-            let ratio = 1.0;
+            let ratio = buffer_width as f32 / buffer_height as f32;
             match doc.get_element_by_id("wasm-example") {
                 Some(dst) => {
                     web_width = dst.client_width() as f32;
@@ -105,8 +78,9 @@ struct AppState {
     buffer_width: u32,
     buffer_height: u32,
     scale: u32,
+    start: Instant,
     window: Option<Arc<Window>>,
-    stage: Option<PixstageRgba<'static>>,
+    stage: Option<PixstageIndexed<'static>>,
 }
 
 #[derive(Clone, Debug)]
@@ -121,6 +95,7 @@ impl App {
                 buffer_width,
                 buffer_height,
                 scale,
+                start: Instant::now(),
                 window: None,
                 stage: None,
             })),
@@ -144,13 +119,13 @@ impl ApplicationHandler for App {
                 buffer_width * scale,
                 buffer_height * scale,
             ))
-            .with_title("Pixstage")
+            .with_title("Pixstage - Palette Cycle")
             .with_resizable(true);
 
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
         #[cfg(target_arch = "wasm32")]
-        setup_canvas(&window);
+        setup_canvas(&window, buffer_width, buffer_height);
 
         self.state.borrow_mut().window = Some(window.clone());
 
@@ -159,12 +134,13 @@ impl ApplicationHandler for App {
             let size = window.inner_size();
             let surface_texture =
                 SurfaceTexture::new(size.width.max(1), size.height.max(1), window.clone()).unwrap();
-            let stage = pollster::block_on(PixstageRgba::new_async(
+            let mut stage = pollster::block_on(PixstageIndexed::new_async(
                 buffer_width,
                 buffer_height,
                 surface_texture,
             ))
             .unwrap();
+            init_indices(&mut stage);
             self.state.borrow_mut().stage = Some(stage);
             window.request_redraw();
         }
@@ -178,9 +154,11 @@ impl ApplicationHandler for App {
                 let surface_texture =
                     SurfaceTexture::new(size.width.max(1), size.height.max(1), window.clone())
                         .unwrap();
-                let stage = PixstageRgba::new_async(buffer_width, buffer_height, surface_texture)
-                    .await
-                    .unwrap();
+                let mut stage =
+                    PixstageIndexed::new_async(buffer_width, buffer_height, surface_texture)
+                        .await
+                        .unwrap();
+                init_indices(&mut stage);
                 state.borrow_mut().stage = Some(stage);
                 window.request_redraw();
             });
@@ -218,8 +196,9 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                let t = state.start.elapsed().as_secs_f32() * 0.1;
                 if let Some(stage) = state.stage.as_mut() {
-                    draw_scene(stage);
+                    update_palette(stage, t);
                     window.pre_present_notify();
                     if let Err(error) = stage.render() {
                         eprintln!("{error:?}");
@@ -240,7 +219,7 @@ impl ApplicationHandler for App {
 fn main() {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();
-    let mut app = App::new(200, 200, 4);
+    let mut app = App::new(256, 240, 3);
     event_loop.run_app(&mut app).unwrap();
 }
 
@@ -252,6 +231,6 @@ pub fn main_web() {
 
     use winit::platform::web::EventLoopExtWebSys;
     let event_loop = EventLoop::new().unwrap();
-    let app = App::new(200, 200, 4);
+    let app = App::new(256, 240, 3);
     event_loop.spawn_app(app);
 }
